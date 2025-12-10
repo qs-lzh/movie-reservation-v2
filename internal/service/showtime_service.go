@@ -12,8 +12,6 @@ import (
 
 type ShowtimeService interface {
 	CreateShowtime(movieID uint, startTime time.Time, hallID uint) error
-	UpdateShowtime(showtimeID uint, startTime time.Time, hallID uint) error
-	DeleteShowtimeByID(showtimeID uint) error
 	GetShowtimeByID(showtimeID uint) (*model.Showtime, error)
 	GetShowtimesByMovieID(movieID uint) ([]model.Showtime, error)
 	GetShowtimesByMovieIDTx(tx *gorm.DB, movieID uint) ([]model.Showtime, error)
@@ -23,18 +21,16 @@ type ShowtimeService interface {
 }
 
 type showtimeService struct {
-	db                  *gorm.DB
-	repo                repository.ShowtimeRepo
-	showtimeSeatService ShowtimeSeatService
+	db   *gorm.DB
+	repo repository.ShowtimeRepo
 }
 
 var _ ShowtimeService = (*showtimeService)(nil)
 
-func NewShowtimeService(db *gorm.DB, showtimeRepo repository.ShowtimeRepo, showtimeSeatService ShowtimeSeatService) *showtimeService {
+func NewShowtimeService(db *gorm.DB, showtimeRepo repository.ShowtimeRepo) *showtimeService {
 	return &showtimeService{
-		db:                  db,
-		repo:                showtimeRepo,
-		showtimeSeatService: showtimeSeatService,
+		db:   db,
+		repo: showtimeRepo,
 	}
 }
 
@@ -45,57 +41,7 @@ func (s *showtimeService) CreateShowtime(movieID uint, startTime time.Time, hall
 			StartAt: startTime,
 			HallID:  uint(hallID),
 		}
-		if err := s.repo.WithTx(tx).Create(showtime); err != nil {
-			return err
-		}
-
-		return s.showtimeSeatService.InitShowtimeSeatsForShowtimeTx(tx, showtime)
-	})
-}
-
-func (s *showtimeService) UpdateShowtime(showtimeID uint, startTime time.Time, hallID uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// Ensure no related ShowtimeSeat
-		relatedShowtimeSeats, err := s.showtimeSeatService.GetShowtimeSeatsByShowtimeIDTx(tx, showtimeID)
-		if err != nil {
-			return err
-		}
-		if len(relatedShowtimeSeats) != 0 {
-			return ErrRelatedResourceExists
-		}
-
-		showtime, err := s.repo.WithTx(tx).GetByID(uint(showtimeID))
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrNotFound
-			}
-			return err
-		}
-		if err := s.repo.WithTx(tx).DeleteByID(uint(showtimeID)); err != nil {
-			return err
-		}
-		showtime.ID = uint(showtimeID)
-		showtime.StartAt = startTime
-		showtime.HallID = uint(hallID)
-		if err := s.repo.WithTx(tx).Create(showtime); err != nil {
-			return err
-		}
-		return nil
-	})
-}
-
-func (s *showtimeService) DeleteShowtimeByID(showtimeID uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// Ensure no related ShowtimeSeat
-		relatedShowtimeSeats, err := s.showtimeSeatService.GetShowtimeSeatsByShowtimeIDTx(tx, showtimeID)
-		if err != nil {
-			return err
-		}
-		if len(relatedShowtimeSeats) != 0 {
-			return ErrRelatedResourceExists
-		}
-
-		return s.repo.WithTx(tx).DeleteByID(uint(showtimeID))
+		return s.repo.WithTx(tx).Create(showtime)
 	})
 }
 

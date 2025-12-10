@@ -59,7 +59,5 @@ func initDB(db *gorm.DB) {
 		&model.Showtime{},
 		&model.Reservation{},
 		&model.Hall{},
-		&model.Seat{},
-		&model.ShowtimeSeat{},
 	)
 }

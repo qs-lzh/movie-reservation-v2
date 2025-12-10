@@ -20,29 +20,21 @@ type HallService interface {
 type hallService struct {
 	db              *gorm.DB
 	repo            repository.HallRepo
-	seatService     SeatService
 	showtimeService ShowtimeService
 }
 
 var _ HallService = (*hallService)(nil)
 
-func NewHallService(db *gorm.DB, hallRepo repository.HallRepo, seatService SeatService,
-	showtimeService ShowtimeService) *hallService {
+func NewHallService(db *gorm.DB, hallRepo repository.HallRepo, showtimeService ShowtimeService) *hallService {
 	return &hallService{
 		db:              db,
 		repo:            hallRepo,
-		seatService:     seatService,
 		showtimeService: showtimeService,
 	}
 }
 
 func (s *hallService) CreateHall(hall *model.Hall) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := s.repo.WithTx(tx).Create(hall); err != nil {
-			return err
-		}
-		return s.seatService.InitSeatsForHallTx(tx, hall)
-	})
+	return s.repo.Create(hall)
 }
 
 func (s *hallService) UpdateHall(hall *model.Hall) error {

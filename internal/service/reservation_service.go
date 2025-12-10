@@ -19,23 +19,21 @@ type ReservationService interface {
 }
 
 type reservationService struct {
-	db                  *gorm.DB
-	repo                repository.ReservationRepo
-	showtimeRepo        repository.ShowtimeRepo
-	hallRepo            repository.HallRepo
-	showtimeSeatService ShowtimeSeatService
+	db           *gorm.DB
+	repo         repository.ReservationRepo
+	showtimeRepo repository.ShowtimeRepo
+	hallRepo     repository.HallRepo
 }
 
 var _ ReservationService = (*reservationService)(nil)
 
 func NewReservationService(db *gorm.DB, reservationRepo repository.ReservationRepo,
-	showtimeRepo repository.ShowtimeRepo, hallRepo repository.HallRepo, showtimeSeatService ShowtimeSeatService) *reservationService {
+	showtimeRepo repository.ShowtimeRepo, hallRepo repository.HallRepo) *reservationService {
 	return &reservationService{
-		db:                  db,
-		repo:                reservationRepo,
-		showtimeRepo:        showtimeRepo,
-		hallRepo:            hallRepo,
-		showtimeSeatService: showtimeSeatService,
+		db:           db,
+		repo:         reservationRepo,
+		showtimeRepo: showtimeRepo,
+		hallRepo:     hallRepo,
 	}
 }
 
@@ -67,42 +65,24 @@ func (s *reservationService) Reserve(userID, showtimeID, seatID uint) error {
 		}
 
 		// reserve
-		if err = s.repo.WithTx(tx).Create(&model.Reservation{
+		return s.repo.WithTx(tx).Create(&model.Reservation{
 			ShowtimeID: showtimeID,
 			SeatID:     seatID,
 			UserID:     userID,
-		}); err != nil {
-			return err
-		}
-
-		// change showtimeSeat status
-		showtimeSeat, err := s.showtimeSeatService.GetShowtimeSeatByShowtimeIDSeatIDTx(tx, showtimeID, seatID)
-		if err != nil {
-			return err
-		}
-		return s.showtimeSeatService.UpdateShowtimeSeatStatusToLockedTx(tx, showtimeSeat.ID)
+		})
 	})
 }
 
 func (s *reservationService) CancelReservation(reservationID uint) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		reservation, err := s.repo.WithTx(tx).GetByID(reservationID)
+		_, err := s.repo.WithTx(tx).GetByID(reservationID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return ErrNotFound
 			}
 			return err
 		}
-		if err := s.repo.WithTx(tx).DeleteByID(reservationID); err != nil {
-			return err
-		}
-
-		// change showtimeSeat status
-		showtimeSeat, err := s.showtimeSeatService.GetShowtimeSeatByShowtimeIDSeatIDTx(tx, reservation.ShowtimeID, reservation.SeatID)
-		if err != nil {
-			return err
-		}
-		return s.showtimeSeatService.UpdateShowtimeSeatStatusToAvailableTx(tx, showtimeSeat.ID)
+		return s.repo.WithTx(tx).DeleteByID(reservationID)
 	})
 }
 
